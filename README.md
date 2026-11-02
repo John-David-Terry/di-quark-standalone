@@ -20,6 +20,7 @@ azimuthal angle **φ_hJ** (an enhancement near φ_hJ ∼ π), which shows up as 
 | Fig. 2 | `Detectors.pdf` | **B** | Lab pseudorapidity η_h of the leading target pion for five EIC beam settings, overlaid with Central / B0 / Forward detector acceptance bands |
 | Fig. 3 | `signals.pdf`   | **A** | Breit-frame φ_hJ for shared π⁺ vs π⁻ at 0% / 5% / 10% injected-SRC fraction, plus the R_{π⁻/π⁺} ratio strip |
 | Fig. 3 with showers | `results*/` | **C** | Fig. 3 rerun with the SRC kick inside PYTHIA, ISR/FSR on vs off; u-tagged charge-charge correlators ([`scripts/shower_study/README.md`](scripts/shower_study/README.md)) |
+| Flavour tagging | `results_tagging/` | **D** | How well the leading charged hadron of the current hemisphere or jet (π⁺, π⁺/K⁺, or any positive hadron, with a cut on z_h) tags a struck u vs d; student notebook with jet clustering ([`scripts/shower_study/README.md`](scripts/shower_study/README.md#track-d--struck-quark-flavour-from-the-leading-hadron)) |
 
 The tracks use **different generators, data layouts, and plot scripts** and must not be mixed.
 
@@ -39,6 +40,7 @@ src/diquark/            # library: path resolution, raw-event analysis
 scripts/generation/     # Track B raw-event generation (generate_events_raw.py)
 scripts/analysis/       # Track A pipeline + both plot scripts
 scripts/shower_study/   # Track C: Fig. 3 with parton showers (patched PYTHIA 8.311, C++) + charge correlators
+scripts/shower_study/tagging/   # Track D: struck-quark flavour from the leading hadron (same generator as Track C)
 AGENT_INSTRUCTIONS.md   # exact, copy-pasteable commands for all tracks
 clean_tree.sh           # safe cleanup: reduce the repo to its source manifest
 ```
@@ -99,6 +101,25 @@ scripts/shower_study/smoke_test.sh            # toy-size end-to-end check (minut
 ```
 
 Full production and analysis (≈ 5 CPU-hours, ≈ 25 GB): see [`scripts/shower_study/README.md`](scripts/shower_study/README.md).
+
+### Track D — struck-quark flavour from the leading hadron
+
+Needs the Track C installation (`setup_pythia.sh`, `build.sh`).
+
+```bash
+scripts/shower_study/tagging/run_tagging.sh            # struck-u / struck-d samples (≈ 40 CPU-minutes)
+scripts/shower_study/tagging/run_analysis_tagging.sh   # efficiencies and purities vs the z_h cut
+```
+
+Student notebook (jet clustering and the leading-hadron tag by hand, on already-generated events):
+
+```bash
+scripts/shower_study/tagging/make_notebook_sample.sh   # 300k events with particle four-momenta (≈ 20 s)
+jupyter notebook scripts/shower_study/tagging/leading_hadron_notebook.ipynb
+```
+
+It needs numpy, pandas, matplotlib and Jupyter; in VS Code or Cursor, open the `.ipynb` file instead and pick a
+Python kernel that has `ipykernel` installed.
 
 ## Scale knobs
 

@@ -48,15 +48,14 @@ MANIFEST=(
   ".gitignore"
   "scripts/shower_study/README.md"
   "scripts/shower_study/build.sh"
+  "scripts/shower_study/charge_ratio.py"
   "scripts/shower_study/compact_original_fig3.py"
   "scripts/shower_study/compare_fig3.py"
-  "scripts/shower_study/charge_ratio.py"
   "scripts/shower_study/compare_primkt.py"
   "scripts/shower_study/exploratory/charge_profile.py"
   "scripts/shower_study/exploratory/charge_tag.py"
   "scripts/shower_study/exploratory/compare_mjoin.py"
   "scripts/shower_study/exploratory/flavor_tagging.py"
-  "scripts/shower_study/exploratory/leadpi_tag.py"
   "scripts/shower_study/exploratory/qqc.py"
   "scripts/shower_study/exploratory/qqc_b2b_shape.py"
   "scripts/shower_study/exploratory/run_mjoin_scan.sh"
@@ -79,6 +78,11 @@ MANIFEST=(
   "scripts/shower_study/run_kick3p74.sh"
   "scripts/shower_study/run_qqc.sh"
   "scripts/shower_study/smoke_test.sh"
+  "scripts/shower_study/tagging/leading_hadron_notebook.ipynb"
+  "scripts/shower_study/tagging/leadpi_tag.py"
+  "scripts/shower_study/tagging/make_notebook_sample.sh"
+  "scripts/shower_study/tagging/run_analysis_tagging.sh"
+  "scripts/shower_study/tagging/run_tagging.sh"
 )
 
 # --- Parse args ------------------------------------------------------------

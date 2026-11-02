@@ -12,6 +12,9 @@ $HERE/run_fig3_patched.sh 4000 2
 $HERE/run_kick3p74.sh 4000 2
 $HERE/run_qqc.sh 20000 4000 2
 $HERE/run_fig3_remnant_width.sh 10000 2 0.693 0
+$HERE/tagging/run_tagging.sh 4000 2
+$HERE/tagging/make_notebook_sample.sh 2000 1
 $HERE/run_analysis.sh
 $HERE/run_analysis_remnant_width.sh ktw0p693_m0
+$HERE/tagging/run_analysis_tagging.sh
 echo "smoke test passed; outputs in $STUDY_ROOT"

@@ -130,4 +130,60 @@ For comparison, the original Figure 3 (Track A, no showers) gives a 10% R modula
 | `charge_ratio.py` | Charge ratio R_π and its SRC / no-SRC double ratio, overall and in bins of the Breit-frame separation Δη_hJ = \|η_π − η_J\| (`--tag`; `--edges` all bin boundaries, default 0,4,5.5,inf, e.g. 1,2.5,4,5.5; `--sep dy` for rapidity) |
 | `qqc_utag.py`, `qqc_chi.py`, `recoil_charge.py` | Charge-correlator analyses |
 | `compact_original_fig3.py` | Optional: compact the original Figure 3 CSV for `compare_fig3.py` |
-| `exploratory/` | Studies that led here but are not part of the results above: reduced primordial kT and `mJoinJunction` scans, u/d tagging (jet charge, charge profile, leading-hadron tag), untagged QQC, back-to-back shape checks. Each script documents the samples it needs |
+| `tagging/` | Leading-hadron flavour tag (Track D, section below): `run_tagging.sh`, `run_analysis_tagging.sh`, `leadpi_tag.py`, and the student notebook `leading_hadron_notebook.ipynb` with `make_notebook_sample.sh` |
+| `exploratory/` | Studies that led here but are not part of the results above: reduced primordial kT and `mJoinJunction` scans, untagged QQC, back-to-back shape checks, and jet-charge / charge-flow flavour taggers (`flavor_tagging.py`, `charge_profile.py`, `charge_tag.py`). Each script documents the samples it needs |
+
+## Track D — struck-quark flavour from the leading hadron
+
+Every Track C observable that selects "u-quark" events relies on telling a struck u from a struck
+d. Track D measures how well the **leading hadron** does that: when the struck quark fragments, the
+hadron with the largest share of its momentum most often contains it, so a struck u tends to lead
+with a π⁺ (u d̄) or K⁺ (u s̄) and a struck d with a π⁻. Track D uses the same patched Pythia and
+generator as Track C, with SRC off and the Figure 3 DIS window, showers off and on. The
+generator-level struck flavour is used only to measure efficiency and purity.
+
+The tag: the **leading charged hadron of the Breit current hemisphere**, the one with the largest
+SIDIS z_h = P·P_h / P·q among charged hadrons with Breit p_z < 0, is a π⁺ (or π⁺/K⁺, or any of
+π⁺, K⁺, p) with z_h above a cut. No jet is needed. With π⁺ or K⁺ and z_h > 0.5 this is the u-tag of
+the charge-charge correlators (`qqc_utag.py`, `qqc_chi.py`, `recoil_charge.py`). `leadpi_tag.py`
+also reports a jet version (the highest-energy constituent of the current anti-kT jet is a π⁺
+carrying more than the cut of the jet energy).
+
+Efficiency is the fraction of all struck-u (struck-d) events that pass the tag; purity is the
+fraction of tagged events with a struck u rather than a d, at the Figure 3 mix u : d = 0.742 : 0.116.
+
+```bash
+scripts/shower_study/tagging/run_tagging.sh            # struck-u and struck-d samples, showers off/on (4 x 1M events)
+scripts/shower_study/tagging/run_analysis_tagging.sh   # efficiencies, purities, z_h-cut scans (seconds)
+```
+
+Results go to `results_tagging/`: `leadpi_tag_z0p5.txt` (the z_h > 0.5 tag, including the jet
+version and the species of the leading hadron), `leadpi_tag_zscan.*` and `leadpos_tag_zscan.*`
+(purity and efficiency vs the z_h cut for π⁺, π⁺ or K⁺, and any positive hadron).
+
+Reference values (showers off / on):
+
+| Leading charged hadron of the current hemisphere | u efficiency | d efficiency | u purity |
+|---|---|---|---|
+| no tag | 1 | 1 | 0.865 |
+| π⁺ (no z_h cut) | 0.500 / 0.494 | 0.254 / 0.260 | 0.926 / 0.924 |
+| π⁺, z_h > 0.5 | 0.113 / 0.100 | 0.031 / 0.028 | 0.959 / 0.958 |
+| π⁺ or K⁺, z_h > 0.5 (the QQC u-tag) | 0.143 / 0.127 | 0.040 / 0.036 | 0.958 / 0.957 |
+| π⁺, K⁺ or p, z_h > 0.5 | 0.183 / 0.162 | 0.062 / 0.056 | 0.950 / 0.949 |
+
+**Student notebook.** `tagging/leading_hadron_notebook.ipynb` does the same with jet clustering, on
+a small sample of already-generated events: it implements e⁺e⁻ anti-kT in a few lines of numpy,
+checks that it reproduces the generator's jets (it does, event by event), takes the jet's leading
+charged hadron by z_h, and reproduces the purity and efficiency plots above. With a z_h > 0.5 cut the
+jet and whole-hemisphere tags agree (π⁺: 0.099 / 0.028, purity 0.957, showers on); without a cut the
+jet version tags fewer events because in about a quarter of events the hemisphere's leading charged
+hadron is not in the jet. Make its events once (about 20 seconds for 300k) and open it in Jupyter,
+VS Code or Cursor (with `ipykernel` installed):
+
+```bash
+scripts/shower_study/tagging/make_notebook_sample.sh            # 300k events, showers on
+scripts/shower_study/tagging/make_notebook_sample.sh 300000 0   # optional: showers off
+```
+
+The sample (`$STUDY_ROOT/notebook/`) has the usual event file plus one row per visible final-state
+particle with its Breit-frame four-momentum (generator option `particles=`).

@@ -38,6 +38,9 @@
 //     or not): event_id, charge, Breit azimuth and transverse momentum, current hemisphere flag
 //     (Breit pz < 0), proton-forward lab eta, z_LC = q.P_h / q.P, SIDIS z_h = P.P_h / P.q, and
 //     whether it is the leading (largest z_h) charged hadron of the current hemisphere.
+//   particles=<csv>: also write one row per jet-clustering input of every selected event: every
+//     visible final-state particle except the scattered electron, with its Breit-frame
+//     four-momentum (event_id, pdg_id, charge, px, py, pz, e). For the jet-charge notebook.
 //   utagonly=1: write event and qqc rows only for events passing the experimental struck-u tag
 //     (leading current-hemisphere charged hadron is a pi+ or K+ with z_h > 0.5); nacc still
 //     counts all selected DIS events.
@@ -105,7 +108,7 @@ int main(int argc, char* argv[]) {
     {"out", "fig3.csv"}, {"sample", "unchanged"}, {"src", "0"}, {"showers", "0"},
     {"remnant", "junction"}, {"nacc", "1000"}, {"seed", "12345"}, {"eidoffset", "0"},
     {"jetR", "1.0"}, {"kt", "0.4"}, {"ktdist", "2"}, {"ptmaxmatch", ""}, {"primkt", ""}, {"mjoinjunction", ""}, {"struck", "u"},
-    {"struckid", "0"}, {"hadrons", ""}, {"qqc", ""}, {"utagonly", "0"}, {"xmldoc", XMLDIR}};
+    {"struckid", "0"}, {"hadrons", ""}, {"qqc", ""}, {"particles", ""}, {"utagonly", "0"}, {"xmldoc", XMLDIR}};
   for (int i = 1; i < argc; ++i) {
     string a = argv[i];
     size_t eq = a.find('=');
@@ -206,6 +209,12 @@ int main(int argc, char* argv[]) {
     hadOut = fopen(opt["hadrons"].c_str(), "w");
     if (!hadOut) { fprintf(stderr, "cannot open %s\n", opt["hadrons"].c_str()); return 1; }
     fprintf(hadOut, "event_id,charge,theta_hJ,current,in_jet\n");
+  }
+  FILE* partOut = nullptr;
+  if (!opt["particles"].empty()) {
+    partOut = fopen(opt["particles"].c_str(), "w");
+    if (!partOut) { fprintf(stderr, "cannot open %s\n", opt["particles"].c_str()); return 1; }
+    fprintf(partOut, "event_id,pdg_id,charge,px,py,pz,e\n");
   }
   FILE* qqcOut = nullptr;
   if (!opt["qqc"].empty()) {
@@ -354,6 +363,14 @@ int main(int argc, char* argv[]) {
       }
     }
 
+    // Jet-clustering inputs (Breit frame), for re-clustering outside the generator.
+    if (partOut && writeEvent)
+      for (const fjcore::PseudoJet& pj : inputs) {
+        const Particle& p = ev[pj.user_index()];
+        fprintf(partOut, "%ld,%d,%d,%.7g,%.7g,%.7g,%.7g\n", eventId, p.id(), int(round(p.charge())),
+          pj.px(), pj.py(), pj.pz(), pj.E());
+      }
+
     // Struck-parton "jet" of the original analysis: final copy of the hard outgoing quark.
     Vec4 kOut;
     for (int i = 0; i < ev.size(); ++i)
@@ -447,6 +464,7 @@ int main(int argc, char* argv[]) {
   fclose(out);
   if (hadOut) fclose(hadOut);
   if (qqcOut) fclose(qqcOut);
+  if (partOut) fclose(partOut);
 
   double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
   FILE* js = fopen((opt["out"] + ".summary.json").c_str(), "w");

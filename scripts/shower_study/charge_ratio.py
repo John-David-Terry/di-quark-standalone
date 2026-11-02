@@ -17,6 +17,8 @@ Test 2: the same in three bins of the Breit-frame separation between the pion an
         sqrt(m_pi^2 + p_T^2) (pion). The lab-frame acceptance is unchanged; the separation only
         sorts accepted events. --edges takes all bin boundaries (events outside them are not used);
         --edges tertiles uses the no-SRC, no-radiation tertiles instead.
+The per-bin figure has three rows: pi- 1/sigma dsigma/dphi_hJ (unit area in each bin) for the four
+configurations, R_pi, and R_pi^SRC / R_pi^noSRC.
 Summary per double ratio: back-to-back excess (mean - 1 over phi_hJ > 3 pi/4), cos-modulation m of
 a (1 + m cos phi_hJ), and their radiation survival (with / without radiation).
 Input: production_primkt/showers_{off,on}_{unchanged,altered}_<tag>.csv (run_fig3_remnant_width.sh).
@@ -63,6 +65,15 @@ def r_pi(d: pd.DataFrame) -> tuple:
     return r, e, len(vp), len(vm)
 
 
+def pim_density(d: pd.DataFrame) -> tuple:
+    """pi- 1/sigma dsigma/dphi_hJ (unit area on [0, pi]) with Poisson errors."""
+    v = d.loc[d["pion"] == "piminus", "phi"].to_numpy()
+    v = v[np.isfinite(v)]
+    h, _ = np.histogram(v, bins=BINS)
+    norm = len(v) * np.diff(BINS)
+    return h / norm, np.sqrt(h) / norm
+
+
 def b2b(r: np.ndarray, e: np.ndarray) -> tuple:
     sel = (CENTERS > 0.75 * math.pi) & np.isfinite(r)
     w = 1.0 / e[sel] ** 2
@@ -91,7 +102,18 @@ def style_axis(a, fs, xlabel=True):
     a.tick_params(which="minor", length=5, width=1.0)
 
 
-def draw(ax_r, ax_d, res, fs, legend=True):
+def draw_abs(ax, res, fs, legend=True):
+    """pi- 1/sigma dsigma/dphi_hJ for the four configurations."""
+    for src in (0, 1):
+        for sh, (col, mk, rad) in STYLE.items():
+            h, e = res[("dens", sh, src)]
+            ax.errorbar(CENTERS, h, yerr=e, fmt=mk, ms=4, color=col, mfc=col if src else "white", ls="none",
+                        label=f"{'SRC' if src else 'no SRC'}, {rad}")
+    if legend:
+        ax.legend(fontsize=fs * 0.75, loc="center left", frameon=False)
+
+
+def draw(ax_r, ax_d, res, fs, legend=True, legend_r=True):
     """Four R_pi curves on ax_r, the two SRC / no-SRC double ratios on ax_d."""
     for src in (0, 1):
         for sh, (col, mk, rad) in STYLE.items():
@@ -103,8 +125,9 @@ def draw(ax_r, ax_d, res, fs, legend=True):
         ax_d.errorbar(CENTERS, r, yerr=e, fmt=mk, ms=4, color=col, ls="none", label=rad)
     for a in (ax_r, ax_d):
         a.axhline(1.0, color="k", lw=0.8)
-    if legend:
+    if legend and legend_r:
         ax_r.legend(fontsize=fs * 0.75, loc="lower right", frameon=False)
+    if legend:
         ax_d.legend(fontsize=fs * 0.75, loc="upper left", frameon=False)
 
 
@@ -114,6 +137,7 @@ def analyse(data: dict, sel: dict | None, say, label: str) -> dict:
         for src in (0, 1):
             d = data[(sh, src)] if sel is None else data[(sh, src)][sel[(sh, src)]]
             res[(sh, src)] = r_pi(d)
+            res[("dens", sh, src)] = pim_density(d)
         res[("dr", sh)] = ratio_of(res[(sh, 1)], res[(sh, 0)])
     say(f"\n== {label} ==")
     for sh in ("off", "on"):
@@ -230,22 +254,26 @@ def main() -> None:
             f"(cos-mod survival {r[('surv', 'mod')][0]:.3f}±{r[('surv', 'mod')][1]:.3f})")
     (out / f"summary_{args.sep}{suffix}.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    fs = 16
-    fig, ax = plt.subplots(2, len(bins), figsize=(6 * len(bins), 10), sharex=True)
+    # No gaps between panels: y tick labels only in the left column, x tick labels only in the bottom
+    # row, bin ranges above the top row, and the outermost ticks of each row pruned so labels of
+    # neighbouring rows do not collide.
+    fs = 32
+    fig, ax = plt.subplots(3, len(bins), figsize=(8 * len(bins), 21), sharex=True, sharey="row")
     for j, (lo, hi, name, r) in enumerate(bins):
-        draw(ax[0, j], ax[1, j], r, fs, legend=(j == 0))
+        draw_abs(ax[0, j], r, fs, legend=(j == 0))
+        draw(ax[1, j], ax[2, j], r, fs, legend=(j == 0), legend_r=False)
         txt = "$" + bin_name(lo, hi, sym[0]).replace("<=", r"\leq").replace(">=", r"\geq") + "$"
-        ax[0, j].text(0.04, 0.92, txt, transform=ax[0, j].transAxes, fontsize=fs)
-        for i in (0, 1):
-            style_axis(ax[i, j], fs, xlabel=(i == 1))
-    for i in (0, 1):  # common y range per row
-        lo_y = min(a.get_ylim()[0] for a in ax[i])
-        hi_y = max(a.get_ylim()[1] for a in ax[i])
-        for a in ax[i]:
-            a.set_ylim(lo_y, hi_y)
-    ax[0, 0].set_ylabel(r"$R_\pi(\phi_{hJ})$", fontsize=fs)
-    ax[1, 0].set_ylabel(r"$R_\pi^{\rm SRC}/R_\pi^{\rm noSRC}$", fontsize=fs)
-    fig.tight_layout()
+        ax[0, j].set_title(txt, fontsize=fs, pad=16)
+        for i in (0, 1, 2):
+            style_axis(ax[i, j], fs, xlabel=(i == 2))
+            ax[i, j].tick_params(which="both", top=True, right=True)
+    ax[0, 0].set_ylim(0.0, None)
+    for i in (0, 1, 2):
+        ax[i, 0].yaxis.set_major_locator(matplotlib.ticker.MaxNLocator(nbins=5, prune="both"))
+    ax[0, 0].set_ylabel(r"$\dfrac{1}{\sigma}\dfrac{d\sigma}{d\phi_{hJ}}$ ($\pi^-$)", fontsize=fs)
+    ax[1, 0].set_ylabel(r"$R_\pi(\phi_{hJ})$", fontsize=fs)
+    ax[2, 0].set_ylabel(r"$R_\pi^{\rm SRC}/R_\pi^{\rm noSRC}$", fontsize=fs)
+    fig.subplots_adjust(left=0.1, right=0.99, bottom=0.07, top=0.95, wspace=0.0, hspace=0.0)
     fig.savefig(out / f"charge_ratio_{args.sep}_bins{suffix}.pdf")
     fig.savefig(out / f"charge_ratio_{args.sep}_bins{suffix}.png", dpi=120)
     print(f"\nwrote {out}")

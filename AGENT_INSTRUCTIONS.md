@@ -13,6 +13,7 @@ This standalone package can produce:
 | **Detectors.pdf** | B | Five-beam leading-π lab η_h overlay with EIC detector bands |
 | **signals.pdf** | A | Breit-frame φ_hJ: shared π⁺ + π⁻ at 0% / 5% / 10% altered fraction + R_{π⁻/π⁺} |
 | **results\*/** | C | Fig. 3 with the SRC kick inside PYTHIA and ISR/FSR on vs off; u-tagged charge-charge correlators |
+| **results_tagging/** | D | Struck-quark flavour from the leading hadron: efficiency and purity of the u-tag vs the z_h cut |
 
 Do **not** confuse the tracks. They use different generators, data layouts, and plot scripts.
 
@@ -295,6 +296,25 @@ Each output folder has a `summary*.txt`; reference values are in `scripts/shower
 
 ---
 
+# Track D — struck-quark flavour from the leading hadron
+
+Same patched PYTHIA and generator as Track C (do C1–C3 first). SRC off, Figure 3 DIS window, showers off
+and on. Measures how well the leading charged hadron of the current hemisphere (π⁺, π⁺/K⁺, or any positive
+hadron, with a cut on its z_h) tags a struck u vs d; the generator-level flavour is used only to compute
+efficiency and purity. Details and reference values:
+[`scripts/shower_study/README.md`](scripts/shower_study/README.md#track-d--struck-quark-flavour-from-the-leading-hadron).
+
+```bash
+scripts/shower_study/tagging/run_tagging.sh           # D1. struck u / struck d samples, showers off/on (4 x 1M events)
+scripts/shower_study/tagging/run_analysis_tagging.sh  # D2. results_tagging/: efficiencies, purities, z_h-cut scans
+scripts/shower_study/tagging/make_notebook_sample.sh  # D3. events for the student notebook (300k, showers on)
+jupyter notebook scripts/shower_study/tagging/leading_hadron_notebook.ipynb   # jet clustering + leading-hadron tag by hand
+```
+
+`run_tagging.sh` takes `[events per chunk] [chunks]`.
+
+---
+
 ## Agent checklist (deliverables)
 
 After a successful run, confirm these exist:
@@ -303,6 +323,7 @@ After a successful run, confirm these exist:
 2. `outputs/figures/signals.pdf` (or `${FIG}/signals.pdf` from A5)
 3. Track A `run_summary.json` under `altered_100k_parquet/` shows `"surgery_version": "v2"`
 4. Track C: `${STUDY_ROOT}/results*/summary.txt` match the reference table in `scripts/shower_study/README.md` within errors
+5. Track D: `${STUDY_ROOT}/results_tagging/` matches the Track D reference table in the same README
 
 ## What NOT to do
 
