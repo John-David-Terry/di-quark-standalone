@@ -1,0 +1,152 @@
+diff -ru a/include/Pythia8/BeamRemnants.h b/include/Pythia8/BeamRemnants.h
+--- a/include/Pythia8/BeamRemnants.h
++++ b/include/Pythia8/BeamRemnants.h
+@@ -72,6 +72,12 @@
+          halfScaleForKT, halfMassForKT, reducedKTatHighY;
+   int    remnantMode, reconnectMode;
+ 
++  // SRC modification (DIDIS study): correlated back-to-back kT for the
++  // struck valence u quark and a remnant partner quark in DIS.
++  bool   srcOn{false};
++  int    srcPartnerId{1}, srcKTdist{0}, srcKickMode{0};
++  double srcKT{0.}, srcKbarWidth{0.};
++
+   // Information set for events.
+   bool   isDIS, doMPI, beamA2gamma, beamB2gamma;
+   int    nSys, oldSize, iDS;
+diff -ru a/src/BeamParticle.cc b/src/BeamParticle.cc
+--- a/src/BeamParticle.cc
++++ b/src/BeamParticle.cc
+@@ -847,9 +847,18 @@
+     for (int k = 0; k < nValLeft[i]; ++k) append(0, idVal[i], 0., -3);
+   }
+ 
++  // SRC modification (DIDIS study): in DIS with a valence initiator, keep
++  // the two remaining valence quarks as separate remnant partons (joined
++  // with the initiator by a junction) instead of combining them into a
++  // diquark, so that a remnant partner quark can be given its own kT.
++  bool splitDiqDIS = isDIS && isHadronBeam && isBaryon() && nInit == 1
++    && resolved[0].isValence()
++    && settingsPtr->isFlag("SRC:splitDiquarkDIS")
++    && flag("SRC:splitDiquarkDIS");
++
+   // If at least two valence quarks left in baryon remnant then form diquark.
+   int nInitPlusVal = size();
+-  if (isBaryon() && nInitPlusVal - nInit >= 2) {
++  if (isBaryon() && nInitPlusVal - nInit >= 2 && !splitDiqDIS) {
+ 
+     // If three, pick two at random to form diquark, else trivial.
+     int iQ1 = nInit;
+@@ -890,7 +899,9 @@
+   }
+ 
+   // For DIS allow collapse to one colour singlet hadron.
+-  if (isHadronBeam && isDIS && size() > 2 && resolved[0].id() != 21) {
++  // (Not applicable when the remnant diquark was kept split.)
++  if (isHadronBeam && isDIS && size() > 2 && resolved[0].id() != 21
++    && !splitDiqDIS) {
+     if (size() != 4) {
+       loggerPtr->ERROR_MSG("unexpected number of beam remnants for DIS");
+       return false;
+diff -ru a/src/BeamRemnants.cc b/src/BeamRemnants.cc
+--- a/src/BeamRemnants.cc
++++ b/src/BeamRemnants.cc
+@@ -63,6 +63,22 @@
+   // Do multiparton interactions.
+   doMPI               = flag("PartonLevel:MPI");
+ 
++  // SRC modification (DIDIS study). The SRC:* settings are registered by
++  // the user program; if absent, the modification is switched off.
++  srcOn = settingsPtr->isFlag("SRC:on") && flag("SRC:on");
++  if (srcOn) {
++    srcPartnerId = mode("SRC:partnerId");
++    srcKTdist    = mode("SRC:kTdist");
++    srcKT        = parm("SRC:kT");
++    srcKbarWidth = parm("SRC:kbarWidth");
++    // Optional (registered only by drivers that use it): 0 = replace the
++    // primordial kT of initiator and partner, 1 = add the pair on top of it.
++    srcKickMode  = settingsPtr->isMode("SRC:kickMode")
++                 ? mode("SRC:kickMode") : 0;
++    if (!doPrimordialKT) loggerPtr->WARNING_MSG(
++      "SRC:on requires BeamRemnants:primordialKT = on; no SRC kT is added");
++  }
++
+   // Flags for photoproduction from either (or both) side.
+   beamA2gamma         = flag("PDF:beamA2gamma");
+   beamB2gamma         = flag("PDF:beamB2gamma");
+@@ -1139,6 +1155,75 @@
+       for (int iPar = 0; iPar < nBeam; ++iPar) {
+         beamHad[iPar].px( beamHad[iPar].px() - pxSum*kTcomp[iPar]/kTcompSum );
+         beamHad[iPar].py( beamHad[iPar].py() - pySum*kTcomp[iPar]/kTcompSum );
++      }
++
++      // SRC modification (DIDIS study). If the initiator is a valence u
++      // quark and the remnant contains a separate partner quark of flavour
++      // srcPartnerId (requires SRC:splitDiquarkDIS = on), replace the kT of
++      // the initiator and the partner by a correlated back-to-back pair,
++      //   k1 = +kSRC + kbar/2  (initiator),   k2 = -kSRC + kbar/2  (partner),
++      // and let the remaining remnant partons share -kbar, so that the
++      // total kT of the hadron beam stays zero.
++      if (srcOn && isDIS && beamHad[0].isValence() && beamHad[0].id() == 2) {
++        int iPartner = -1;
++        for (int iRem = 1; iRem < nBeam; ++iRem)
++          if (beamHad[iRem].id() == srcPartnerId) { iPartner = iRem; break; }
++        int nSpect = nBeam - 2;
++        if (iPartner > 0 && nSpect > 0) {
++          // Relative momentum kSRC: 2D Gaussian of width srcKT (kTdist = 0),
++          // fixed magnitude srcKT with random direction (kTdist = 1), or
++          // magnitude srcKT * sin(theta), theta uniform in [0, pi], with
++          // random direction (kTdist = 2; the Figure 3 surgery-v2 kick).
++          double kSx, kSy;
++          if (srcKTdist == 1) {
++            double phi = 2. * M_PI * rndmPtr->flat();
++            kSx = srcKT * cos(phi);
++            kSy = srcKT * sin(phi);
++          } else if (srcKTdist == 2) {
++            double kMag = srcKT * sin(M_PI * rndmPtr->flat());
++            double phi  = 2. * M_PI * rndmPtr->flat();
++            kSx = kMag * cos(phi);
++            kSy = kMag * sin(phi);
++          } else {
++            pair<double, double> gS = rndmPtr->gauss2();
++            kSx = srcKT * gS.first;
++            kSy = srcKT * gS.second;
++          }
++          // Pair centre-of-mass momentum kbar: 2D Gaussian of width
++          // srcKbarWidth.
++          pair<double, double> gB = rndmPtr->gauss2();
++          double kBx = srcKbarWidth * gB.first;
++          double kBy = srcKbarWidth * gB.second;
++          // kickMode = 1: add the pair to the already balanced primordial
++          // kT; spectators then only need to absorb -kbar.
++          if (srcKickMode == 1) {
++            beamHad[0].px( beamHad[0].px() + kSx + 0.5 * kBx);
++            beamHad[0].py( beamHad[0].py() + kSy + 0.5 * kBy);
++            beamHad[iPartner].px( beamHad[iPartner].px() - kSx + 0.5 * kBx);
++            beamHad[iPartner].py( beamHad[iPartner].py() - kSy + 0.5 * kBy);
++            for (int iRem = 1; iRem < nBeam; ++iRem)
++            if (iRem != iPartner) {
++              beamHad[iRem].px( beamHad[iRem].px() - kBx / nSpect);
++              beamHad[iRem].py( beamHad[iRem].py() - kBy / nSpect);
++            }
++          } else {
++            beamHad[0].px(  kSx + 0.5 * kBx);
++            beamHad[0].py(  kSy + 0.5 * kBy);
++            beamHad[iPartner].px( -kSx + 0.5 * kBx);
++            beamHad[iPartner].py( -kSy + 0.5 * kBy);
++            // Spectators: keep their own Gaussian kT relative to their mean,
++            // and shift them so that they carry -kbar in total.
++            double pxSp = 0., pySp = 0.;
++            for (int iRem = 1; iRem < nBeam; ++iRem) if (iRem != iPartner) {
++              pxSp += beamHad[iRem].px();
++              pySp += beamHad[iRem].py();
++            }
++            for (int iRem = 1; iRem < nBeam; ++iRem) if (iRem != iPartner) {
++              beamHad[iRem].px( beamHad[iRem].px() - (pxSp + kBx) / nSpect);
++              beamHad[iRem].py( beamHad[iRem].py() - (pySp + kBy) / nSpect);
++            }
++          }
++        }
+       }
+     }
+ 

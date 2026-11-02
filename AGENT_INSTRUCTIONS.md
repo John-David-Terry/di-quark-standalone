@@ -1,4 +1,4 @@
-# Agent instructions: generate both paper plots from scratch
+# Agent instructions: generate the paper plots from scratch
 
 **Working directory:** always the root of this tree (the directory that contains `scripts/` and `src/`).
 
@@ -12,6 +12,7 @@ This standalone package can produce:
 |------|-------|-------------|
 | **Detectors.pdf** | B | Five-beam leading-π lab η_h overlay with EIC detector bands |
 | **signals.pdf** | A | Breit-frame φ_hJ: shared π⁺ + π⁻ at 0% / 5% / 10% altered fraction + R_{π⁻/π⁺} |
+| **results\*/** | C | Fig. 3 with the SRC kick inside PYTHIA and ISR/FSR on vs off; u-tagged charge-charge correlators |
 
 Do **not** confuse the tracks. They use different generators, data layouts, and plot scripts.
 
@@ -238,6 +239,62 @@ Combined triptych keeps grey / purple / red π⁻ across panels; standalone sing
 
 ---
 
+# Track C — Fig. 3 with parton showers and charge correlators
+
+Separate C++ generator on a patched PYTHIA 8.311 (built from source, no Python bindings needed). Full
+description, reference numbers and file list: [`scripts/shower_study/README.md`](scripts/shower_study/README.md).
+
+```bash
+export PYTHIA8_DIR="${HOME}/Data/pythia8311-SRCpatch"   # outside the repo
+export STUDY_ROOT="${HOME}/Data/fig3_shower_study"      # outside the repo
+export PYTHON=python3                                   # numpy, pandas, matplotlib
+
+scripts/shower_study/pythia/setup_pythia.sh   # C1. download 8.311, verify, patch, build (~5 CPU-minutes)
+scripts/shower_study/smoke_test.sh            # C2. toy-size end-to-end check (minutes)
+scripts/shower_study/build.sh                 # C3. compile the generator
+scripts/shower_study/run_fig3_patched.sh      # C4. Fig. 3 rerun, 0.4 GeV kick, showers off/on
+scripts/shower_study/run_kick3p74.sh          #     3.74 GeV kick, showers off/on
+scripts/shower_study/run_qqc.sh               #     charge-correlator samples
+scripts/shower_study/run_analysis.sh          # C5. all summaries and figures under ${STUDY_ROOT}/results*/
+```
+
+Production is ≈ 5 CPU-hours and ≈ 25 GB; every production script takes `[events per chunk] [chunks]`.
+
+## C6. SRC kick from the doubled remnant intrinsic kT: survival under radiation
+
+In SRC events the partner d's intrinsic-kT width goes from `primordialKTremnant` = 0.4 to 0.8 GeV:
+a correlated Gaussian kick of per-component width √(0.8² − 0.4²) = 0.693 GeV, +k on the struck u
+and −k on the d (transverse momentum conserved; generator option `ktdist=0`). All other
+intrinsic-kT parameters stay at the PYTHIA defaults, and `SpaceShower:pTmaxMatch = 0`
+(generator option `ptmaxmatch=`) for every sample. "SRC" below is the pure SRC-on sample.
+
+```bash
+# 4 samples (no SRC / SRC x showers off / on), 8 chunks x 4M = 32M events each:
+# ≈ 4 CPU-hours, ≈ 60 GB including the per-chunk CSVs
+scripts/shower_study/run_fig3_remnant_width.sh 4000000 8 0.693 0
+# all analyses of these samples (tag ktw0p693_m0), ≈ 10 minutes
+scripts/shower_study/run_analysis_remnant_width.sh ktw0p693_m0
+```
+
+`run_analysis_remnant_width.sh` runs, in order:
+
+1. `compare_primkt.py`: Figure 3 mixtures (0/5/10%), flavour-tagged ⟨cos φ_hJ⟩ shifts and shower
+   survival, plus the Figure 3-layout plots → `results_remnant_width_${TAG}/`.
+2. `plot_absolute_vs_ratio.py --tag`: π⁻ 1/σ dσ/dφ_hJ and R(φ_hJ) for the 10% mixture →
+   `results_absolute_vs_ratio/absolute_vs_ratio_10pct_${TAG}.png`.
+3. `plot_src_radiation.py`: π⁻ distributions for no SRC / SRC × no radiation / radiation and the
+   SRC / no-SRC ratios → `results_src_radiation_${TAG}/`.
+4. `charge_ratio.py`, twice: the charge ratio R_π = π⁻/π⁺ (shape-normalized, as in the manuscript,
+   both pions from the same sample) for the four cases and R_π^SRC / R_π^noSRC, overall and in bins
+   of the Breit-frame pseudorapidity separation Δη_hJ = |η_π − η_J|, first < 4 / 4–5.5 / ≥ 5.5,
+   then 1–2.5 / 2.5–4 / 4–5.5 (`--edges`). The lab-frame acceptance is unchanged; Δη_hJ only sorts
+   accepted events → `results_charge_ratio_${TAG}/`.
+
+Each output folder has a `summary*.txt`; reference values are in `scripts/shower_study/README.md`.
+`smoke_test.sh` runs this production and analysis at toy size.
+
+---
+
 ## Agent checklist (deliverables)
 
 After a successful run, confirm these exist:
@@ -245,6 +302,7 @@ After a successful run, confirm these exist:
 1. `outputs/figures/Detectors.pdf` (or the `--out` path you chose in B2)
 2. `outputs/figures/signals.pdf` (or `${FIG}/signals.pdf` from A5)
 3. Track A `run_summary.json` under `altered_100k_parquet/` shows `"surgery_version": "v2"`
+4. Track C: `${STUDY_ROOT}/results*/summary.txt` match the reference table in `scripts/shower_study/README.md` within errors
 
 ## What NOT to do
 
@@ -253,4 +311,5 @@ After a successful run, confirm these exist:
 - Do not use `--kinematics-preset e5_ep41_x005_q2to4` for **Track A generation** of the Q∈(4,5) sample (wrong Q² window).
 - Do not omit `--pion-eta-min 2.0 --pion-eta-max 3.5` on observables if matching the paper caption.
 - Do not mix Track B NumPy shards with Track A Parquet paths.
+- Do not apply the Track C patch to a PYTHIA version other than 8.311 (`setup_pythia.sh` checks the files it touches).
 - Do not regenerate if the user only asked to replot — plot scripts alone suffice when CSV / shards already exist.

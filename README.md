@@ -19,8 +19,9 @@ azimuthal angle **φ_hJ** (an enhancement near φ_hJ ∼ π), which shows up as 
 |-----------------|--------|-------|-------------|
 | Fig. 2 | `Detectors.pdf` | **B** | Lab pseudorapidity η_h of the leading target pion for five EIC beam settings, overlaid with Central / B0 / Forward detector acceptance bands |
 | Fig. 3 | `signals.pdf`   | **A** | Breit-frame φ_hJ for shared π⁺ vs π⁻ at 0% / 5% / 10% injected-SRC fraction, plus the R_{π⁻/π⁺} ratio strip |
+| Fig. 3 with showers | `results*/` | **C** | Fig. 3 rerun with the SRC kick inside PYTHIA, ISR/FSR on vs off; u-tagged charge-charge correlators ([`scripts/shower_study/README.md`](scripts/shower_study/README.md)) |
 
-The two tracks use **different generators, data layouts, and plot scripts** and must not be mixed.
+The tracks use **different generators, data layouts, and plot scripts** and must not be mixed.
 
 ## Physics settings (as in the paper)
 
@@ -37,7 +38,8 @@ The two tracks use **different generators, data layouts, and plot scripts** and 
 src/diquark/            # library: path resolution, raw-event analysis
 scripts/generation/     # Track B raw-event generation (generate_events_raw.py)
 scripts/analysis/       # Track A pipeline + both plot scripts
-AGENT_INSTRUCTIONS.md   # exact, copy-pasteable commands for both tracks
+scripts/shower_study/   # Track C: Fig. 3 with parton showers (patched PYTHIA 8.311, C++) + charge correlators
+AGENT_INSTRUCTIONS.md   # exact, copy-pasteable commands for all tracks
 clean_tree.sh           # safe cleanup: reduce the repo to its source manifest
 ```
 
@@ -46,6 +48,7 @@ clean_tree.sh           # safe cleanup: reduce the repo to its source manifest
 - Python 3.9+
 - `numpy`, `pandas`, `pyarrow`, `matplotlib`, `tqdm`
 - **PYTHIA 8** Python bindings (`import pythia8`) — required for generation and Track A reinjection
+- Track C only: a C++11 compiler, `zsh`, `curl`; it builds its own patched PYTHIA 8.311 from source
 
 ## Data location (important — do not melt your laptop)
 
@@ -86,6 +89,16 @@ launching multiple worker processes; the alter (A3) and reinjection (A4) stages 
 `--workers`. See [`AGENT_INSTRUCTIONS.md`](AGENT_INSTRUCTIONS.md) §A1–A5 for the exact commands.
 
 Always pass **`--surgery-version v2`** to the alter step — v1 is the wrong model for this figure.
+
+### Track C — Fig. 3 with parton showers and charge correlators
+
+```bash
+export PYTHIA8_DIR=$HOME/Data/pythia8311-SRCpatch STUDY_ROOT=$HOME/Data/fig3_shower_study
+scripts/shower_study/pythia/setup_pythia.sh   # download PYTHIA 8.311, apply the SRC patch, build
+scripts/shower_study/smoke_test.sh            # toy-size end-to-end check (minutes)
+```
+
+Full production and analysis (≈ 5 CPU-hours, ≈ 25 GB): see [`scripts/shower_study/README.md`](scripts/shower_study/README.md).
 
 ## Scale knobs
 
